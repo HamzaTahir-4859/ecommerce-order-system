@@ -1,34 +1,70 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Role } from '@prisma/client';
 
+@ApiTags('1. Authentication & RBAC')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post()
-  create(@Body() createAuthDto: CreateAuthDto) {
-    return this.authService.create(createAuthDto);
+  @Post('register')
+  @ApiOperation({ summary: 'Register a new user (CUSTOMER, SELLER, or ADMIN)' })
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
-  @Get()
-  findAll() {
-    return this.authService.findAll();
+  @Post('login')
+  @ApiOperation({ summary: 'Login and receive JWT access & refresh tokens' })
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Generate a password reset token' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using the reset token' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout current user and invalidate token session' })
+  logout(@CurrentUser('id') userId: string) {
+    return this.authService.logout(userId);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get currently logged-in user profile' })
+  getProfile(@CurrentUser() user: any) {
+    return user;
+  }
+
+  @Get('admin-only')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Test RBAC: Accessible only by ADMIN role' })
+  adminCheck() {
+    return { message: 'Welcome Admin! Role-Based Access Control is working.' };
   }
 }
