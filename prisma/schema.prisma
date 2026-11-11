@@ -7,52 +7,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 2. Role-Based Access Control
 enum Role {
   ADMIN
   SELLER
   CUSTOMER
 }
 
-// 5. Order Status Management
 enum OrderStatus {
   PENDING
-  PAID
   PROCESSING
   SHIPPED
   DELIVERED
   CANCELLED
-  REFUNDED
 }
 
-// 6. Stripe Payment Statuses
 enum PaymentStatus {
   PENDING
-  SUCCEEDED
+  COMPLETED
   FAILED
   REFUNDED
 }
 
-// 1. Authentication & Users
 model User {
   id                 String    @id @default(uuid())
+  name               String
   email              String    @unique
   password           String
-  name               String
   role               Role      @default(CUSTOMER)
-  refreshToken       String?   // Nullifying this handles Logout
-  resetPasswordToken String?   // For Forgot/Reset password
+  refreshToken       String?
+  resetPasswordToken String?
   resetTokenExpiry   DateTime?
+  products           Product[]
+  cart               Cart?
+  orders             Order[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-
-  // Relations
-  products Product[] @relation("SellerProducts")
-  cart     Cart?
-  orders   Order[]
 }
 
-// 4. Product Categories
 model Category {
   id          String    @id @default(uuid())
   name        String    @unique
@@ -63,113 +54,93 @@ model Category {
   updatedAt   DateTime  @updatedAt
 }
 
-// 4. Product Management
 model Product {
-  id          String   @id @default(uuid())
+  id          String           @id @default(uuid())
   name        String
+  slug        String?          @unique
   description String
-  basePrice   Float
-  stock       Int      @default(0) // Base stock (if no variations)
-  isActive    Boolean  @default(true)
-  sellerId    String
+  price       Float
+  stock       Int              @default(0)
   categoryId  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  seller     User             @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Cascade)
-  category   Category         @relation(fields: [categoryId], references: [id])
-  images     ProductImage[]
-  variations ProductVariant[]
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sellerId    String
+  seller      User             @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  images      ProductImage[]
+  variants    ProductVariant[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 }
 
-// 4. Product Images
 model ProductImage {
   id        String  @id @default(uuid())
   url       String
-  isPrimary Boolean @default(false)
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
-// 4. Product Variations & Inventory (e.g., Size: L, Color: Red)
 model ProductVariant {
-  id              String      @id @default(uuid())
-  sku             String      @unique
-  size            String?
-  color           String?
-  additionalPrice Float       @default(0)
-  stock           Int         @default(0)
-  productId       String
-  product         Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  cartItems       CartItem[]
-  orderItems      OrderItem[]
+  id        String  @id @default(uuid())
+  sku       String  @unique
+  size      String?
+  color     String?
+  price     Float?
+  stock     Int     @default(0)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
-// 5. Shopping Cart
 model Cart {
   id        String     @id @default(uuid())
   userId    String     @unique
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   items     CartItem[]
+  createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
 
 model CartItem {
-  id        String          @id @default(uuid())
+  id        String   @id @default(uuid())
   cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   productId String
-  variantId String?
-  quantity  Int             @default(1)
-  cart      Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
-
-  @@unique([cartId, productId, variantId])
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// 5. Order Management
 model Order {
-  id              String      @id @default(uuid())
-  userId          String
-  totalAmount     Float
-  status          OrderStatus @default(PENDING)
-  shippingAddress String
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  // Relations
-  user    User        @relation(fields: [userId], references: [id])
-  items   OrderItem[]
-  payment Payment?
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  status        OrderStatus   @default(PENDING)
+  totalAmount   Float
+  paymentStatus PaymentStatus @default(PENDING)
+  items         OrderItem[]
+  payment       Payment?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
 
 model OrderItem {
-  id        String          @id @default(uuid())
+  id        String  @id @default(uuid())
   orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
-  variantId String?
+  product   Product @relation(fields: [productId], references: [id])
   quantity  Int
-  price     Float           // Snapshot of price at time of purchase
-  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product         @relation(fields: [productId], references: [id])
-  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+  price     Float
 }
 
-// 6. Stripe Integration & Refunds
 model Payment {
-  id                    String        @id @default(uuid())
-  orderId               String        @unique
-  stripeSessionId       String?       @unique
-  stripePaymentIntentId String?       @unique
-  amount                Float
-  currency              String        @default("usd")
-  status                PaymentStatus @default(PENDING)
-  refundId              String?       // Populated when Stripe refund is processed
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id            String        @id @default(uuid())
+  orderId       String        @unique
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stripeId      String?       @unique
+  amount        Float
+  status        PaymentStatus
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
