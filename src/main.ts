@@ -4,36 +4,32 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
-  // rawBody: true is REQUIRED for Stripe Webhook signature verification
+  // rawBody: true is required for Stripe Webhook signature verification
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
-  // Enable CORS so your React frontend can communicate with this API
-  app.enableCors();
+  // Enable CORS so the React/Vite frontend can connect seamlessly
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+  });
 
-  // Global DTO validation for CRUD & Pagination
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true,
     }),
   );
 
-  // Submission Requirement: Swagger Documentation
   const config = new DocumentBuilder()
     .setTitle('E-Commerce & Order Management API')
-    .setDescription('NestJS, Prisma, PostgreSQL, Socket.IO & Stripe API')
+    .setDescription('Full-stack E-Commerce API with NestJS, Prisma, Stripe, and Socket.IO')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  // This maps the Swagger UI to the /api/docs endpoint
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`Server running on http://localhost:${port}`);
-  console.log(`Swagger Docs available at http://localhost:${port}/api/docs`);
+  await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

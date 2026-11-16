@@ -11,6 +11,7 @@ import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { StripeModule } from './stripe/stripe.module';
 import { NotificationsGateway } from './notifications/notifications.gateway';
+import { PaymentsModule } from './payments/payments.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -31,6 +32,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     CartModule,
     OrdersModule,
     StripeModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, NotificationsGateway],
